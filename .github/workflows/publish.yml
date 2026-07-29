@@ -3,6 +3,12 @@ name: Verify published crate
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published crate version to verify
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -18,21 +24,30 @@ jobs:
       - name: Install Linux D-Bus build dependencies
         run: sudo apt-get update && sudo apt-get install --yes libdbus-1-dev pkg-config
       - name: Verify immutable release tag
+        if: github.event_name == 'push'
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ github.ref_name }}
         run: |
           VERSION=$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)
-          test "$RELEASE_TAG" = "v$VERSION"
+          test "$RELEASE_VERSION" = "v$VERSION"
+      - name: Verify requested release version
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          VERSION=$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)
+          test "$RELEASE_VERSION" = "$VERSION"
       - run: cargo fmt --check
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked
       - run: cargo publish --locked --dry-run
       - name: Verify public crates.io release
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
         run: |
-          VERSION="${RELEASE_TAG#v}"
+          VERSION="${RELEASE_VERSION#v}"
           curl --fail --silent --show-error \
+            --user-agent "radiochron-native-ble-release-verifier/0.1" \
             "https://crates.io/api/v1/crates/radiochron-native-ble/$VERSION" \
             | jq --exit-status --arg version "$VERSION" \
               '.version.num == $version and .version.yanked == false and (.version.checksum | length > 0)'
