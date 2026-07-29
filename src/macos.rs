@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use dispatch2::DispatchQueue;
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
-use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
+use objc2::{declare_class, msg_send_id, mutability, ClassType, DefinedClass};
 use objc2_core_bluetooth::{
     CBAdvertisementDataIsConnectable, CBAdvertisementDataLocalNameKey,
     CBAdvertisementDataManufacturerDataKey, CBAdvertisementDataServiceDataKey,
@@ -37,7 +37,7 @@ declare_class!(
         const NAME: &'static str = "RadioChronNativeBleCentralDelegate";
     }
 
-    impl DeclaredClass for RadioChronCentralDelegate {
+    impl DefinedClass for RadioChronCentralDelegate {
         type Ivars = Sender<Event>;
     }
 

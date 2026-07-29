@@ -148,10 +148,13 @@ fn convert_device(properties: &PropMap) -> Option<RawAdvertisement> {
         .collect();
     let manufacturer_data = properties
         .get("ManufacturerData")
-        .map(|value| dictionary_entries(&*value.0))
-        .unwrap_or_default()
+        .and_then(|value| value.0.as_iter())
         .into_iter()
-        .filter_map(|(key, value)| {
+        .flatten()
+        .filter_map(|entry| {
+            let mut fields = entry.as_iter()?;
+            let key = fields.next()?;
+            let value = fields.next()?;
             Some(ManufacturerData {
                 company_id: u16::try_from(key.as_u64()?).ok()?,
                 data: refarg_bytes(value)?,
@@ -160,10 +163,13 @@ fn convert_device(properties: &PropMap) -> Option<RawAdvertisement> {
         .collect();
     let service_data = properties
         .get("ServiceData")
-        .map(|value| dictionary_entries(&*value.0))
-        .unwrap_or_default()
+        .and_then(|value| value.0.as_iter())
         .into_iter()
-        .filter_map(|(key, value)| {
+        .flatten()
+        .filter_map(|entry| {
+            let mut fields = entry.as_iter()?;
+            let key = fields.next()?;
+            let value = fields.next()?;
             Some(ServiceData {
                 uuid: key.as_str()?.to_ascii_lowercase(),
                 data: refarg_bytes(value)?,
@@ -182,20 +188,6 @@ fn convert_device(properties: &PropMap) -> Option<RawAdvertisement> {
         service_data,
         protocol_identity: None,
     })
-}
-
-fn dictionary_entries<'a>(
-    value: &'a (dyn RefArg + 'static),
-) -> Vec<(&'a (dyn RefArg + 'static), &'a (dyn RefArg + 'static))> {
-    value
-        .as_iter()
-        .into_iter()
-        .flatten()
-        .filter_map(|entry| {
-            let mut fields = entry.as_iter()?;
-            Some((fields.next()?, fields.next()?))
-        })
-        .collect()
 }
 
 fn refarg_bytes(value: &(dyn RefArg + 'static)) -> Option<Vec<u8>> {
