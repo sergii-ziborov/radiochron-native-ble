@@ -132,7 +132,6 @@ fn convert_device(properties: &PropMap) -> Option<RawAdvertisement> {
     let address = prop_cast::<String>(properties, "Address")?.clone();
     let address_type = match prop_cast::<String>(properties, "AddressType").map(String::as_str) {
         Some("public") => AddressType::Public,
-        Some("random") => AddressType::Unknown,
         _ => AddressType::Unknown,
     };
     let local_name = prop_cast::<String>(properties, "Name")
