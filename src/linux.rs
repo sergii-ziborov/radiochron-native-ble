@@ -202,7 +202,7 @@ fn service_data(properties: &PropMap) -> Vec<ServiceData> {
         .collect()
 }
 
-fn refarg_bytes(value: &(dyn RefArg + 'static)) -> Option<Vec<u8>> {
+fn refarg_bytes(value: &dyn RefArg) -> Option<Vec<u8>> {
     let value = if value.arg_type() == ArgType::Variant {
         value.as_iter()?.next()?
     } else {
