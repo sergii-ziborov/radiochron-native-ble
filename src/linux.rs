@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use dbus::arg::{prop_cast, PropMap, RefArg, Variant};
+use dbus::arg::{prop_cast, ArgType, PropMap, RefArg, Variant};
 use dbus::blocking::Connection;
 use dbus::Path;
 use radiochron::ble::{AddressType, ManufacturerData, ServiceData};
@@ -26,7 +26,7 @@ pub(crate) fn scan(duration: Duration, observer: &dyn ScanObserver) -> Result<Sc
         .map_err(|error| Error::new(format!("connect to system D-Bus: {error}")))?;
     let objects = managed_objects(&connection)?;
     let mut adapters = Vec::new();
-    let mut active_paths = Vec::new();
+    let mut active_adapters = Vec::new();
 
     for (path, interfaces) in &objects {
         let Some(properties) = interfaces.get(ADAPTER_INTERFACE) else {
@@ -66,7 +66,7 @@ pub(crate) fn scan(duration: Duration, observer: &dyn ScanObserver) -> Result<Sc
             match start_result {
                 Ok(()) => {
                     report.scan_started = true;
-                    active_paths.push(path.clone());
+                    active_adapters.push((path.clone(), adapters.len()));
                 }
                 Err(error) => report
                     .errors
@@ -82,12 +82,12 @@ pub(crate) fn scan(duration: Duration, observer: &dyn ScanObserver) -> Result<Sc
         observer.progress(started.elapsed().min(duration), duration);
     }
 
-    for path in &active_paths {
+    for (path, adapter_index) in &active_adapters {
         let proxy = connection.with_proxy(BLUEZ_DESTINATION, path.clone(), DBUS_TIMEOUT);
         let stop_result: Result<(), dbus::Error> =
             proxy.method_call(ADAPTER_INTERFACE, "StopDiscovery", ());
         if let Err(error) = stop_result {
-            if let Some(report) = adapter_report_for_path(&objects, &mut adapters, path) {
+            if let Some(report) = adapters.get_mut(*adapter_index) {
                 report.errors.push(format!("stop BlueZ discovery: {error}"));
             }
         }
@@ -126,19 +126,6 @@ fn managed_objects(connection: &Connection) -> Result<ManagedObjects, Error> {
             ))
         })?;
     Ok(objects)
-}
-
-fn adapter_report_for_path<'a>(
-    objects: &ManagedObjects,
-    adapters: &'a mut [AdapterReport],
-    path: &Path<'_>,
-) -> Option<&'a mut AdapterReport> {
-    let properties = objects.get(path)?.get(ADAPTER_INTERFACE)?;
-    let name = prop_cast::<String>(properties, "Alias")
-        .or_else(|| prop_cast::<String>(properties, "Name"))
-        .map(String::as_str)
-        .unwrap_or(path.as_cstr().to_str().ok()?);
-    adapters.iter_mut().find(|report| report.name == name)
 }
 
 fn convert_device(properties: &PropMap) -> Option<RawAdvertisement> {
@@ -197,9 +184,9 @@ fn convert_device(properties: &PropMap) -> Option<RawAdvertisement> {
     })
 }
 
-fn dictionary_entries(
-    value: &(dyn RefArg + 'static),
-) -> Vec<(&(dyn RefArg + 'static), &(dyn RefArg + 'static))> {
+fn dictionary_entries<'a>(
+    value: &'a (dyn RefArg + 'static),
+) -> Vec<(&'a (dyn RefArg + 'static), &'a (dyn RefArg + 'static))> {
     value
         .as_iter()
         .into_iter()
@@ -212,7 +199,11 @@ fn dictionary_entries(
 }
 
 fn refarg_bytes(value: &(dyn RefArg + 'static)) -> Option<Vec<u8>> {
-    let value = value.as_iter()?.next().unwrap_or(value);
+    let value = if value.arg_type() == ArgType::Variant {
+        value.as_iter()?.next()?
+    } else {
+        value
+    };
     Some(
         value
             .as_iter()?

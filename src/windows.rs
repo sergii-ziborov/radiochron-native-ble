@@ -41,15 +41,12 @@ pub(crate) fn scan(duration: Duration, observer: &dyn ScanObserver) -> Result<Sc
         BluetoothLEAdvertisementReceivedEventArgs,
     > = TypedEventHandler::new(
         move |_sender, args: Ref<BluetoothLEAdvertisementReceivedEventArgs>| {
-            let result = args
-                .ok()
-                .and_then(convert_advertisement)
-                .map(|item| {
-                    callback_items
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner)
-                        .merge(item);
-                });
+            let result = args.ok().and_then(convert_advertisement).map(|item| {
+                callback_items
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .merge(item);
+            });
             if let Err(error) = result {
                 let mut errors = callback_error_items
                     .lock()
