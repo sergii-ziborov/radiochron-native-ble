@@ -184,6 +184,7 @@ fn merge_service_data(target: &mut Vec<ServiceData>, incoming: Vec<ServiceData>)
     );
 }
 
+#[cfg(any(windows, test))]
 pub(crate) fn classify_random_address(address: u64) -> AddressType {
     match (address >> 46) & 0b11 {
         0b11 => AddressType::RandomStatic,
@@ -193,14 +194,17 @@ pub(crate) fn classify_random_address(address: u64) -> AddressType {
     }
 }
 
+#[cfg(any(windows, test))]
 pub(crate) fn bluetooth_uuid16(value: u16) -> String {
     format!("{value:08x}-0000-1000-8000-00805f9b34fb")
 }
 
+#[cfg(any(windows, test))]
 pub(crate) fn bluetooth_uuid32(value: u32) -> String {
     format!("{value:08x}-0000-1000-8000-00805f9b34fb")
 }
 
+#[cfg(any(windows, test))]
 pub(crate) fn uuid_from_le_bytes(bytes: &[u8]) -> Option<String> {
     let bytes: [u8; 16] = bytes.try_into().ok()?;
     let value = u128::from_le_bytes(bytes);
@@ -218,8 +222,8 @@ pub(crate) fn uuid_from_le_bytes(bytes: &[u8]) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        bluetooth_uuid16, classify_random_address, uuid_from_le_bytes, AdvertisementSet,
-        RawAdvertisement,
+        bluetooth_uuid16, bluetooth_uuid32, classify_random_address, uuid_from_le_bytes,
+        AdvertisementSet, RawAdvertisement,
     };
     use radiochron::ble::{AddressType, ManufacturerData};
 
@@ -278,6 +282,10 @@ mod tests {
         assert_eq!(
             bluetooth_uuid16(0x180d),
             "0000180d-0000-1000-8000-00805f9b34fb"
+        );
+        assert_eq!(
+            bluetooth_uuid32(0x1234_5678),
+            "12345678-0000-1000-8000-00805f9b34fb"
         );
         assert_eq!(
             uuid_from_le_bytes(&[

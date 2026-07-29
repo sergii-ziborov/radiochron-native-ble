@@ -146,36 +146,8 @@ fn convert_device(properties: &PropMap) -> Option<RawAdvertisement> {
         .into_iter()
         .map(|uuid| uuid.to_ascii_lowercase())
         .collect();
-    let manufacturer_data = properties
-        .get("ManufacturerData")
-        .and_then(|value| value.0.as_iter())
-        .into_iter()
-        .flatten()
-        .filter_map(|entry| {
-            let mut fields = entry.as_iter()?;
-            let key = fields.next()?;
-            let value = fields.next()?;
-            Some(ManufacturerData {
-                company_id: u16::try_from(key.as_u64()?).ok()?,
-                data: refarg_bytes(value)?,
-            })
-        })
-        .collect();
-    let service_data = properties
-        .get("ServiceData")
-        .and_then(|value| value.0.as_iter())
-        .into_iter()
-        .flatten()
-        .filter_map(|entry| {
-            let mut fields = entry.as_iter()?;
-            let key = fields.next()?;
-            let value = fields.next()?;
-            Some(ServiceData {
-                uuid: key.as_str()?.to_ascii_lowercase(),
-                data: refarg_bytes(value)?,
-            })
-        })
-        .collect();
+    let manufacturer_data = manufacturer_data(properties);
+    let service_data = service_data(properties);
     Some(RawAdvertisement {
         address,
         address_type,
@@ -188,6 +160,46 @@ fn convert_device(properties: &PropMap) -> Option<RawAdvertisement> {
         service_data,
         protocol_identity: None,
     })
+}
+
+fn manufacturer_data(properties: &PropMap) -> Vec<ManufacturerData> {
+    let Some(value) = properties.get("ManufacturerData") else {
+        return Vec::new();
+    };
+    let Some(entries) = value.0.as_iter() else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(|entry| {
+            let mut fields = entry.as_iter()?;
+            let key = fields.next()?;
+            let value = fields.next()?;
+            Some(ManufacturerData {
+                company_id: u16::try_from(key.as_u64()?).ok()?,
+                data: refarg_bytes(value)?,
+            })
+        })
+        .collect()
+}
+
+fn service_data(properties: &PropMap) -> Vec<ServiceData> {
+    let Some(value) = properties.get("ServiceData") else {
+        return Vec::new();
+    };
+    let Some(entries) = value.0.as_iter() else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(|entry| {
+            let mut fields = entry.as_iter()?;
+            let key = fields.next()?;
+            let value = fields.next()?;
+            Some(ServiceData {
+                uuid: key.as_str()?.to_ascii_lowercase(),
+                data: refarg_bytes(value)?,
+            })
+        })
+        .collect()
 }
 
 fn refarg_bytes(value: &(dyn RefArg + 'static)) -> Option<Vec<u8>> {
