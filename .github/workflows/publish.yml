@@ -1,4 +1,4 @@
-name: Publish crate
+name: Verify published crate
 
 on:
   push:
@@ -10,9 +10,6 @@ permissions:
 jobs:
   crates-io:
     runs-on: ubuntu-latest
-    environment: crates-io
-    env:
-      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -26,10 +23,16 @@ jobs:
         run: |
           VERSION=$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)
           test "$RELEASE_TAG" = "v$VERSION"
-      - name: Require crates.io credentials
-        run: test -n "$CARGO_REGISTRY_TOKEN"
       - run: cargo fmt --check
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked
       - run: cargo publish --locked --dry-run
-      - run: cargo publish --locked
+      - name: Verify public crates.io release
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          curl --fail --silent --show-error \
+            "https://crates.io/api/v1/crates/radiochron-native-ble/$VERSION" \
+            | jq --exit-status --arg version "$VERSION" \
+              '.version.num == $version and .version.yanked == false and (.version.checksum | length > 0)'
